@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DUSTLINE — Sector 7</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0c0e12; font-family: "Segoe UI", Roboto, Arial, sans-serif; color: #e8e6df; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+  .layer { position: absolute; inset: 0; pointer-events: none; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+  #crosshair .dot { position: absolute; left: -2px; top: -2px; width: 4px; height: 4px; background: #ffe9a8; border-radius: 50%; box-shadow: 0 0 3px #000; }
+  #crosshair .arm { position: absolute; background: #ffe9a8; box-shadow: 0 0 3px #000; }
+  #hitmarker { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; opacity: 0; }
+  #hitmarker span { position: absolute; width: 9px; height: 2px; background: #fff; }
+  #hitmarker span:nth-child(1) { left: 0; top: 0; transform: rotate(45deg); }
+  #hitmarker span:nth-child(2) { right: 0; top: 0; transform: rotate(-45deg); }
+  #hitmarker span:nth-child(3) { left: 0; bottom: 0; transform: rotate(-45deg); }
+  #hitmarker span:nth-child(4) { right: 0; bottom: 0; transform: rotate(45deg); }
+  #hitmarker.headshot span { background: #ff5a3c; }
+  #vignette { position: absolute; inset: 0; box-shadow: inset 0 0 120px 40px rgba(255, 30, 10, 0); transition: box-shadow 120ms; }
+  #hud-bottom { position: absolute; left: 24px; bottom: 20px; display: flex; gap: 18px; align-items: flex-end; }
+  .panel { background: rgba(10, 12, 16, 0.62); border: 1px solid rgba(232, 230, 223, 0.22); border-radius: 6px; padding: 8px 12px; }
+  #health-num { font-size: 34px; font-weight: 700; line-height: 1; }
+  #health-label { font-size: 11px; letter-spacing: 2px; opacity: 0.75; }
+  #armor-num { font-size: 15px; color: #7fd4ff; }
+  #ammo-num { font-size: 34px; font-weight: 700; line-height: 1; }
+  #ammo-reserve { font-size: 15px; opacity: 0.8; }
+  #weapon-name { font-size: 12px; letter-spacing: 1px; opacity: 0.85; }
+  #money { font-size: 20px; font-weight: 700; color: #ffd76a; }
+  #hud-top { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; }
+  #timer { font-size: 26px; font-weight: 700; }
+  #score { font-size: 20px; font-weight: 700; }
+  #score .v { color: #5db9ff; } #score .e { color: #ff6a4d; }
+  #alive { font-size: 13px; opacity: 0.9; }
+  #objective { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); font-size: 13px; letter-spacing: 1px; background: rgba(10,12,16,0.6); padding: 5px 12px; border-radius: 4px; border: 1px solid rgba(232,230,223,0.18); }
+  #killfeed { position: absolute; top: 16px; right: 20px; text-align: right; font-size: 13px; line-height: 1.7; }
+  #killfeed .v { color: #5db9ff; } #killfeed .e { color: #ff6a4d; }
+  #banner { position: absolute; top: 30%; left: 0; right: 0; text-align: center; font-size: 44px; font-weight: 800; letter-spacing: 4px; text-shadow: 0 2px 18px #000; display: none; }
+  #banner small { display: block; font-size: 16px; letter-spacing: 2px; font-weight: 400; margin-top: 6px; }
+  #prompt { position: absolute; bottom: 130px; left: 50%; transform: translateX(-50%); font-size: 15px; background: rgba(10,12,16,0.7); padding: 7px 14px; border-radius: 4px; border: 1px solid rgba(255,215,106,0.5); display: none; }
+  #progress { position: absolute; bottom: 108px; left: 50%; transform: translateX(-50%); width: 220px; height: 6px; background: rgba(255,255,255,0.15); border-radius: 3px; display: none; }
+  #progress > div { height: 100%; width: 0; background: #ffd76a; border-radius: 3px; }
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(8, 10, 14, 0.78); pointer-events: auto; text-align: center; }
+  .screen h1 { font-size: 54px; letter-spacing: 8px; margin: 0 0 4px; color: #ffd76a; }
+  .screen h2 { font-size: 15px; letter-spacing: 3px; font-weight: 400; opacity: 0.85; margin: 0 0 26px; }
+  .screen p { max-width: 560px; line-height: 1.65; opacity: 0.9; margin: 6px 0; }
+  .screen .keys { font-size: 13px; opacity: 0.75; }
+  .btn { pointer-events: auto; cursor: pointer; margin-top: 22px; background: #ffd76a; color: #111; border: 0; border-radius: 5px; padding: 12px 30px; font-size: 16px; font-weight: 700; letter-spacing: 1px; }
+  .btn:hover { background: #ffe08a; }
+  #buy { display: none; position: absolute; inset: 0; background: rgba(8, 10, 14, 0.82); pointer-events: auto; }
+  #buy .inner { width: 640px; margin: 7vh auto 0; }
+  #buy h2 { letter-spacing: 3px; margin: 0 0 4px; }
+  #buy .bal { color: #ffd76a; font-weight: 700; margin-bottom: 14px; }
+  .shop { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .item { background: rgba(255,255,255,0.06); border: 1px solid rgba(232,230,223,0.25); border-radius: 6px; padding: 10px 12px; cursor: pointer; }
+  .item:hover { border-color: #ffd76a; }
+  .item.owned { border-color: #5db9ff; opacity: 0.75; }
+  .item .nm { font-weight: 700; }
+  .item .ds { font-size: 12px; opacity: 0.8; line-height: 1.45; margin-top: 2px; }
+  .item .pr { color: #ffd76a; font-weight: 700; margin-top: 4px; }
+  #buy .hint { margin-top: 14px; font-size: 13px; opacity: 0.8; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div class="layer" id="hud" style="display:none">
+  <div id="crosshair"><div class="dot"></div><div class="arm" id="ch-t"></div><div class="arm" id="ch-b"></div><div class="arm" id="ch-l"></div><div class="arm" id="ch-r"></div></div>
+  <div id="hitmarker"><span></span><span></span><span></span><span></span></div>
+  <div id="vignette"></div>
+  <div id="hud-top">
+    <span id="alive"></span>
+    <span id="score"><span class="v">0</span> — <span class="e">0</span></span>
+    <span id="timer">1:40</span>
+  </div>
+  <div id="objective">Plant the SPIKE at Site R — or eliminate the Ember team</div>
+  <div id="killfeed"></div>
+  <div id="hud-bottom">
+    <div class="panel"><div id="health-label">HEALTH</div><span id="health-num">100</span> <span id="armor-num"></span></div>
+    <div class="panel"><div id="weapon-name">P9 SIDEARM</div><span id="ammo-num">12</span> <span id="ammo-reserve">/ 48</span></div>
+    <div class="panel"><div id="health-label">CREDITS</div><span id="money">$800</span></div>
+  </div>
+  <div id="banner"></div>
+  <div id="prompt"></div>
+  <div id="progress"><div></div></div>
+</div>
+<div class="screen" id="menu">
+  <h1>DUSTLINE</h1>
+  <h2>SECTOR 7 &middot; TACTICAL ROUNDS &middot; VANGUARD vs EMBER</h2>
+  <p>Plant the <b>SPIKE</b> at Site R or eliminate the Ember team. Win rounds, earn credits, buy better guns. First team to 5 rounds takes the sector.</p>
+  <p class="keys">WASD move &middot; Mouse aim &middot; Click fire &middot; R reload &middot; C crouch &middot; Shift sprint &middot; E plant / defuse &middot; B buy menu &middot; G grenade &middot; 1&ndash;4 weapons</p>
+  <button class="btn" id="play-btn">DEPLOY</button>
+</div>
+<div id="buy"><div class="inner">
+  <h2>BUY PHASE</h2>
+  <div class="bal" id="buy-bal">Credits: $800</div>
+  <div class="shop" id="shop"></div>
+  <div class="hint">Click an item to buy it. Press B or the button below to close and start the round. Armor absorbs 50% of damage.</div>
+  <button class="btn" id="buy-close">START ROUND</button>
+</div></div>
+<div class="screen" id="end" style="display:none">
+  <h1 id="end-title">SECTOR SECURED</h1>
+  <h2 id="end-sub"></h2>
+  <p id="end-stats"></p>
+  <button class="btn" id="again-btn">PLAY AGAIN</button>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
